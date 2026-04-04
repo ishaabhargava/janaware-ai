@@ -33,7 +33,7 @@ function InputSection({
       </h2>
 
       <p className="mt-6 max-w-2xl text-lg text-white/70">
-        JanaWare AI analyzes news articles for bias, emotional tone,
+        JanAware AI analyzes news articles for bias, emotional tone,
         credibility, and evidence quality to help users read more critically.
       </p>
 
