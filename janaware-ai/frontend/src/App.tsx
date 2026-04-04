@@ -45,29 +45,54 @@ function App() {
 
   const [history, setHistory] = useState<HistoryItem[]>([]) // ✅ fixed position
 
-  const handleAnalyze = () => {
-    if (!articleInput.trim()) return
+const handleAnalyze = async () => {
+  if (!articleInput.trim()) return;
 
-    setSubmittedText(articleInput)
-    setIsAnalyzing(true)
-    setAnalysisResult(null)
+  setSubmittedText(articleInput);
+  setIsAnalyzing(true);
+  setAnalysisResult(null);
 
-    setTimeout(() => {
-      const result = generateMockAnalysis(articleInput)
+  try {
+    const response = await fetch("http://localhost:5000/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ article: articleInput }),
+    });
 
-      const newItem: HistoryItem = {
-        id: Date.now().toString(),
-        input: articleInput,
-        result,
-        timestamp: Date.now(),
-      }
+let data;
 
-      setHistory((prev) => [newItem, ...prev].slice(0, 6)) // ✅ history update
+const text = await response.text();
 
-      setAnalysisResult(result)
-      setIsAnalyzing(false)
-    }, 1800)
+try {
+  data = JSON.parse(text);
+} catch (err) {
+  console.error("Error parsing JSON:", err);
+  console.error("Response was:", text);
+  throw new Error("Server returned invalid response");
+}
+
+    console.log("Backend response:", data);
+
+    const result = data; // ✅ USING BACKEND NOW
+
+    const newItem: HistoryItem = {
+      id: Date.now().toString(),
+      input: articleInput,
+      result,
+      timestamp: Date.now(),
+    };
+
+    setHistory((prev) => [newItem, ...prev].slice(0, 6));
+    setAnalysisResult(result);
+
+  } catch (error) {
+    console.error("Error:", error);
+  } finally {
+    setIsAnalyzing(false);
   }
+};
 
   const loadSample = (text: string) => {
     setInputType('text')
