@@ -2,7 +2,7 @@
 
 Live Demo: (https://janaware-mtj6125fq-ishaabhargavas-projects.vercel.app)
 
-JanaWare AI is a media analysis tool that helps users understand bias, credibility, and tone in news articles through a clean interactive dashboard.
+JanaWare AI is a media analysis tool designed to help users better understand how news articles are presented. Instead of just reading the content, it breaks articles down into measurable aspects such as bias, credibility, emotional tone, and strength of supporting evidence. The results are shown through a clean, interactive dashboard, allowing users to quickly grasp how information may be framed and form a more informed perspective.
 
 ---
 ## Features
