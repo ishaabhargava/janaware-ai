@@ -8,7 +8,6 @@ import ResultsDashboard from './components/ResultsDashboard'
 import AboutSection from './components/AboutSection'
 import HistoryPanel from './components/HistoryPanel'
 
-import { generateMockAnalysis } from './utils/mockAnalysis'
 import type {
   AnalysisResult,
   InputType,
@@ -42,57 +41,57 @@ function App() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
     null
   )
+  const [history, setHistory] = useState<HistoryItem[]>([])
 
-  const [history, setHistory] = useState<HistoryItem[]>([]) // ✅ fixed position
+  const handleAnalyze = async () => {
+    if (!articleInput.trim()) return
 
-const handleAnalyze = async () => {
-  if (!articleInput.trim()) return;
+    setSubmittedText(articleInput)
+    setIsAnalyzing(true)
+    setAnalysisResult(null)
 
-  setSubmittedText(articleInput);
-  setIsAnalyzing(true);
-  setAnalysisResult(null);
+    try {
+      const requestBody =
+        inputType === 'url'
+          ? { url: articleInput }
+          : { article: articleInput }
 
-  try {
-    const response = await fetch("http://localhost:5000/analyze", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ article: articleInput }),
-    });
+      const response = await fetch('http://localhost:5001/analyze', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      })
 
-let data;
+      const text = await response.text()
+      let data
 
-const text = await response.text();
+      try {
+        data = JSON.parse(text)
+      } catch (err) {
+        console.error('Error parsing JSON:', err)
+        console.error('Response was:', text)
+        throw new Error('Server returned invalid response')
+      }
 
-try {
-  data = JSON.parse(text);
-} catch (err) {
-  console.error("Error parsing JSON:", err);
-  console.error("Response was:", text);
-  throw new Error("Server returned invalid response");
-}
+      console.log('Backend response:', data)
 
-    console.log("Backend response:", data);
+      const newItem: HistoryItem = {
+        id: Date.now().toString(),
+        input: articleInput,
+        result: data,
+        timestamp: Date.now(),
+      }
 
-    const result = data; // ✅ USING BACKEND NOW
-
-    const newItem: HistoryItem = {
-      id: Date.now().toString(),
-      input: articleInput,
-      result,
-      timestamp: Date.now(),
-    };
-
-    setHistory((prev) => [newItem, ...prev].slice(0, 6));
-    setAnalysisResult(result);
-
-  } catch (error) {
-    console.error("Error:", error);
-  } finally {
-    setIsAnalyzing(false);
+      setHistory((prev) => [newItem, ...prev].slice(0, 6))
+      setAnalysisResult(data)
+    } catch (error) {
+      console.error('Error:', error)
+    } finally {
+      setIsAnalyzing(false)
+    }
   }
-};
 
   const loadSample = (text: string) => {
     setInputType('text')
@@ -129,7 +128,6 @@ try {
 
         <ResultsDashboard analysisResult={analysisResult} />
 
-        {/* ✅ NEW HISTORY PANEL */}
         <HistoryPanel history={history} onSelect={handleSelectHistory} />
 
         <AboutSection />
