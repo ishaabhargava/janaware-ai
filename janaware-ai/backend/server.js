@@ -4,40 +4,49 @@ const express = require("express");
 const cors = require("cors");
 const { generateMockAnalysis } = require("./mockAnalysis");
 const { analyzeArticleWithAI } = require("./aiService");
+const { extractArticleFromURL } = require("./utils/extractArticleFromURL");
 
 const app = express();
 
-// Middleware
-app.use(cors());
+app.use(cors({
+  origin: "http://localhost:5174",
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+}));
+ app.use(cors());
+ 
 app.use(express.json());
 
-// Test route
-app.get("/", (req, res) => {
-  res.send("JanAware backend is running 🚀");
+app.get('/', (req, res) => {
+    res.send('Backend is running 🚀');
 });
 
-// Analyze route
 app.post("/analyze", async (req, res) => {
-  const { article } = req.body;
-
-  if (!article) {
-    return res.status(400).json({ error: "Article text is required" });
-  }
+  const { article, url } = req.body;
+  let textToAnalyze = article;
 
   try {
-    const result = await analyzeArticleWithAI(article);
+    if (url) {
+      textToAnalyze = await extractArticleFromURL(url);
+    }
+
+    if (!textToAnalyze || !textToAnalyze.trim()) {
+      return res.status(400).json({
+        error: "Article text or URL is required",
+      });
+    }
+
+    const result = await analyzeArticleWithAI(textToAnalyze);
     res.json(result);
   } catch (error) {
-    console.error("AI Error:", error.message);
-
-    // fallback to mock (VERY IMPORTANT)
-    const fallback = generateMockAnalysis(article);
+    console.error("AI/Error:", error.message);
+    const fallback = generateMockAnalysis(textToAnalyze || "");
     res.json(fallback);
   }
 });
 
-// Start server
-const PORT = 5000;
+const PORT = 5001;
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
