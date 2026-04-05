@@ -1,4 +1,4 @@
-const OpenAI = require("openai");
+const OpenAI = require("openai").default;
 
 const client = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -7,6 +7,78 @@ const client = new OpenAI({
 
 async function analyzeArticleWithAI(text) {
   const prompt = `
+You are an expert media-analysis system.
+
+Analyze the article and return STRICT JSON ONLY.
+No markdown. No explanation outside JSON.
+
+Use these scoring rules carefully:
+
+credibilityScore (0-100):
+- 0-20: unsupported opinion, no evidence, unreliable
+- 21-40: weak support, vague sourcing
+- 41-60: some evidence, mixed reliability
+- 61-80: mostly supported, reasonably credible
+- 81-100: strong evidence, clear sourcing, high credibility
+
+biasScore (0-100):
+- 0-20: neutral and balanced
+- 21-40: mild framing
+- 41-60: noticeable bias
+- 61-80: strong bias in tone/selection
+- 81-100: extreme ideological/emotional bias
+
+emotionalTone (0-100):
+- 0-20: dry and factual
+- 21-40: mildly expressive
+- 41-60: somewhat emotional
+- 61-80: strongly emotional
+- 81-100: highly dramatic or inflammatory
+
+confidence (0-100):
+- how confident you are in the analysis
+
+leaning:
+- "Left", "Right", or "Neutral"
+- choose "Neutral" unless the framing clearly suggests otherwise
+
+evidenceStrength:
+- "Weak", "Moderate", or "Strong"
+
+neutralSummary:
+- 2-3 lines, neutral and factual
+
+explanationPoints:
+- give 3 to 5 short bullet-style points as an array of strings
+
+claims:
+- extract 2 to 4 key claims
+- each item must be:
+{
+  "claim": "string",
+  "support": "string",
+  "evidenceType": "data | opinion | anecdote | expert statement | none",
+  "confidence": number
+}
+
+comparisons:
+- include exactly 2 examples of how different outlets might frame this
+- each item must be:
+{
+  "outlet": "string",
+  "leaning": "Left | Right | Neutral",
+  "headline": "string",
+  "tone": "string",
+  "framing": "string"
+}
+
+Important instructions:
+- Do not assign very low scores unless the article is clearly extremely weak
+- For ordinary opinionated political writing, biasScore is often 50-80
+- For ordinary reporting with some evidence, credibilityScore is often 45-75
+- emotionalTone should reflect wording intensity, not topic severity alone
+- Return all fields
+- Return valid JSON only
 You are a highly precise media analysis AI.
 
 Your task is to analyze a news article across multiple dimensions and return STRICT JSON ONLY.
@@ -92,6 +164,56 @@ Article:
 ${text}
 `;
 
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "openai/gpt-3.5-turbo",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.1,
+    });
+
+    const content = response.choices[0].message.content;
+    const parsed = JSON.parse(content.trim());
+
+    return {
+      credibilityScore: parsed.credibilityScore ?? 50,
+      biasScore: parsed.biasScore ?? 50,
+      emotionalTone: parsed.emotionalTone ?? 50,
+      leaning: parsed.leaning ?? "Unknown",
+      evidenceStrength: parsed.evidenceStrength ?? "Unknown",
+      confidence: parsed.confidence ?? 50,
+      neutralSummary: parsed.neutralSummary ?? "No summary available.",
+      explanationPoints: Array.isArray(parsed.explanationPoints)
+        ? parsed.explanationPoints
+        : typeof parsed.explanationPoints === "string"
+          ? [parsed.explanationPoints]
+          : [],
+      claims: Array.isArray(parsed.claims)
+        ? parsed.claims
+        : parsed.claims
+          ? [parsed.claims]
+          : [],
+      comparisons: Array.isArray(parsed.comparisons)
+        ? parsed.comparisons
+        : parsed.comparisons
+          ? [parsed.comparisons]
+          : [],
+    };
+  } catch (err) {
+    console.error("AI Service Error:", err.message);
+    return {
+      credibilityScore: 50,
+      biasScore: 50,
+      emotionalTone: 50,
+      leaning: "Unknown",
+      evidenceStrength: "Unknown",
+      confidence: 50,
+      neutralSummary: "Could not analyze article.",
+      explanationPoints: [],
+      claims: [],
+      comparisons: [],
+    };
+  }
   try {
     const response = await client.chat.completions.create({
       model: "openai/gpt-3.5-turbo",
