@@ -94,13 +94,12 @@ function ResultsDashboard({ analysisResult }: ResultsDashboardProps) {
             Why this result?
           </h4>
           <ul className="mt-4 space-y-3 text-white/80">
-            {analysisResult.explanationPoints.map((point) => (
-              <li
-                key={point}
-                className="rounded-lg border border-white/10 bg-slate-900/60 p-3"
-              >
-                {point}
-              </li>
+            {(
+              Array.isArray(analysisResult.explanationPoints)
+                ? analysisResult.explanationPoints
+                : []
+            ).map((point: string, index: number) => (
+              <li key={index}>{point}</li>
             ))}
           </ul>
         </div>
