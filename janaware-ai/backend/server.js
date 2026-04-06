@@ -9,7 +9,8 @@ const { extractArticleFromURL } = require("./utils/extractArticleFromURL");
 const app = express();
 
 app.use(cors({
-  origin: "http://localhost:5174",
+  origin: true, // allow all localhost/dev origins
+  credentials: true,
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
 }));
