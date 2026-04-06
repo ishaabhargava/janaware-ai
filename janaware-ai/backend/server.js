@@ -9,13 +9,14 @@ const { extractArticleFromURL } = require("./utils/extractArticleFromURL");
 const app = express();
 
 app.use(cors({
-  origin: true, // allow all localhost/dev origins
-  credentials: true,
-  methods: ["GET", "POST", "OPTIONS"],
+  origin: [
+    "http://localhost:5173",
+    "http://localhost:5174",
+    "https://your-vercel-app.vercel.app"
+  ],
+  methods: ["GET", "POST"],
   allowedHeaders: ["Content-Type"],
 }));
- app.use(cors());
- 
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -46,7 +47,7 @@ app.post("/analyze", async (req, res) => {
   }
 });
 
-const PORT = 5001;
+const PORT = process.env.PORT || 5001;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
