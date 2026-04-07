@@ -8,7 +8,7 @@ const { extractArticleFromURL } = require("./utils/extractArticleFromURL");
 
 const app = express();
 
-aapp.use(cors());
+app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => {
