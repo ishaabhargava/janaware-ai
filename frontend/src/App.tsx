@@ -38,9 +38,7 @@ function App() {
   const [articleInput, setArticleInput] = useState('')
   const [submittedText, setSubmittedText] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(
-    null
-  )
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
 
   const handleAnalyze = async () => {
@@ -51,7 +49,7 @@ function App() {
     setAnalysisResult(null)
 
     console.log('CLICKED')
-    console.log(import.meta.env.VITE_API_URL)
+    console.log('API:', import.meta.env.VITE_API_URL)
 
     try {
       const requestBody =
@@ -67,17 +65,13 @@ function App() {
         body: JSON.stringify(requestBody),
       })
 
-      const text = await response.text()
-      let data
-
-      try {
-        data = JSON.parse(text)
-      } catch (err) {
-        console.error('Error parsing JSON:', err)
-        console.error('Response was:', text)
-        throw new Error('Server returned invalid response')
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Backend error:', errorText)
+        throw new Error('Request failed')
       }
 
+      const data: AnalysisResult = await response.json()
       console.log('Backend response:', data)
 
       const newItem: HistoryItem = {
@@ -91,6 +85,7 @@ function App() {
       setAnalysisResult(data)
     } catch (error) {
       console.error('Error:', error)
+      alert('Something went wrong. Check console.')
     } finally {
       setIsAnalyzing(false)
     }
@@ -129,7 +124,9 @@ function App() {
 
         {isAnalyzing && <AnalysisLoader />}
 
-        <ResultsDashboard analysisResult={analysisResult} />
+        {analysisResult && (
+          <ResultsDashboard analysisResult={analysisResult} />
+        )}
 
         <HistoryPanel history={history} onSelect={handleSelectHistory} />
 
