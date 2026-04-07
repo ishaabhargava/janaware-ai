@@ -23,4 +23,6 @@ ArticleIQ is a media analysis tool designed to help users better understand how 
 - Vite  
 - Tailwind CSS  
 
-
+### Run locally:
+    npm install
+    npm run dev
