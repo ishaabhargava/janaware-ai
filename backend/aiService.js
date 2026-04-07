@@ -5,278 +5,171 @@ const client = new OpenAI({
   baseURL: "https://openrouter.ai/api/v1",
 });
 
+/* ----------------------------- MAIN FUNCTION ----------------------------- */
+
 async function analyzeArticleWithAI(text) {
-  const prompt = `
-You are an expert media-analysis system.
+  const prompt = buildPrompt(text);
+
+  try {
+    const response = await client.chat.completions.create({
+      model: "openai/gpt-4o-mini", 
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+    });
+
+    const content = response.choices?.[0]?.message?.content;
+
+    if (!content) throw new Error("Empty AI response");
+
+    console.log("🔍 RAW AI RESPONSE:\n", content);
+
+    const parsed = safeJSONParse(content);
+
+    return normalize(parsed);
+
+  } catch (err) {
+    console.error("❌ AI ERROR:", err.message);
+    return fallbackResponse();
+  }
+}
+
+/* ----------------------------- PROMPT BUILDER ----------------------------- */
+
+function buildPrompt(text) {
+  return `
+You are an expert media analysis AI.
 
 Analyze the article and return STRICT JSON ONLY.
-No markdown. No explanation outside JSON.
-
-Use these scoring rules carefully:
-
-credibilityScore (0-100):
-- 0-20: unsupported opinion, no evidence, unreliable
-- 21-40: weak support, vague sourcing
-- 41-60: some evidence, mixed reliability
-- 61-80: mostly supported, reasonably credible
-- 81-100: strong evidence, clear sourcing, high credibility
-
-biasScore (0-100):
-- 0-20: neutral and balanced
-- 21-40: mild framing
-- 41-60: noticeable bias
-- 61-80: strong bias in tone/selection
-- 81-100: extreme ideological/emotional bias
-
-emotionalTone (0-100):
-- 0-20: dry and factual
-- 21-40: mildly expressive
-- 41-60: somewhat emotional
-- 61-80: strongly emotional
-- 81-100: highly dramatic or inflammatory
-
-confidence (0-100):
-- how confident you are in the analysis
-
-leaning:
-- "Left", "Right", or "Neutral"
-- choose "Neutral" unless the framing clearly suggests otherwise
-
-evidenceStrength:
-- "Weak", "Moderate", or "Strong"
-
-neutralSummary:
-- 2-3 lines, neutral and factual
-
-explanationPoints:
-- give 3 to 5 short bullet-style points as an array of strings
-
-claims:
-- extract 2 to 4 key claims
-- each item must be:
-{
-  "claim": "string",
-  "support": "string",
-  "evidenceType": "data | opinion | anecdote | expert statement | none",
-  "confidence": number
-}
-
-comparisons:
-- include exactly 2 examples of how different outlets might frame this
-- each item must be:
-{
-  "outlet": "string",
-  "leaning": "Left | Right | Neutral",
-  "headline": "string",
-  "tone": "string",
-  "framing": "string"
-}
-
-Important instructions:
-- Do not assign very low scores unless the article is clearly extremely weak
-- For ordinary opinionated political writing, biasScore is often 50-80
-- For ordinary reporting with some evidence, credibilityScore is often 45-75
-- emotionalTone should reflect wording intensity, not topic severity alone
-- Return all fields
-- Return valid JSON only
-You are a highly precise media analysis AI.
-
-Your task is to analyze a news article across multiple dimensions and return STRICT JSON ONLY.
-
-Do NOT include any explanation outside JSON.
 
 ----------------------------------------
 
 SCORING GUIDELINES:
 
 credibilityScore (0-100):
-- 0–20 → no evidence, opinion-based, unreliable
-- 21–50 → weak support, unclear sources
-- 51–80 → moderate evidence, somewhat reliable
-- 81–100 → strong evidence, well-supported
+- 0–30 → weak / unsupported
+- 31–60 → moderate reliability
+- 61–85 → credible
+- 86–100 → highly reliable
 
 biasScore (0-100):
-- 0–20 → neutral, balanced reporting
-- 21–50 → slight framing or subtle bias
-- 51–80 → clear bias in tone or selection
-- 81–100 → strong ideological or emotional bias
+- 0–20 → neutral
+- 21–50 → mild bias
+- 51–80 → clear bias
+- 81–100 → strong bias
 
 emotionalTone (0-100):
-- 0–20 → purely factual
+- 0–20 → factual
 - 21–50 → mildly expressive
-- 51–80 → emotionally charged
-- 81–100 → highly dramatic or persuasive
-
-confidence (0-100):
-- how confident you are in your analysis
+- 51–80 → emotional
+- 81–100 → highly dramatic
 
 ----------------------------------------
 
-FIELD DEFINITIONS:
+OUTPUT FORMAT:
 
-leaning:
-- "Left", "Right", or "Neutral"
-- based on framing, tone, and perspective
-
-evidenceStrength:
-- "Weak", "Moderate", "Strong"
-- based on presence of data, sources, or verification
-
-neutralSummary:
-- Rewrite the article in a neutral, factual tone (2–3 lines)
-
-explanationPoints:
-- Key reasoning points explaining scores
-
-claims:
-- Extract 2–4 key claims from the article
-- For each claim include:
-  {
-    "claim": "...",
-    "support": "what supports or challenges it",
-    "evidenceType": "data / opinion / anecdote / none",
-    "confidence": number (0-100)
-  }
-
-comparisons:
-- Compare how different outlets might present this
-- Include 2 examples:
-  {
-    "outlet": "...",
-    "leaning": "...",
-    "headline": "...",
-    "tone": "...",
-    "framing": "..."
-  }
+{
+  "credibilityScore": number,
+  "biasScore": number,
+  "emotionalTone": number,
+  "confidence": number,
+  "leaning": "Left | Right | Neutral",
+  "evidenceStrength": "Weak | Moderate | Strong",
+  "neutralSummary": "2-3 line summary",
+  "explanationPoints": ["point1", "point2", "point3"],
+  "claims": [
+    {
+      "claim": "string",
+      "support": "string",
+      "evidenceType": "data | opinion | anecdote | expert statement | none",
+      "confidence": number
+    }
+  ],
+  "comparisons": [
+    {
+      "outlet": "string",
+      "leaning": "Left | Right | Neutral",
+      "headline": "string",
+      "tone": "string",
+      "framing": "string"
+    },
+    {
+      "outlet": "string",
+      "leaning": "Left | Right | Neutral",
+      "headline": "string",
+      "tone": "string",
+      "framing": "string"
+    }
+  ]
+}
 
 ----------------------------------------
 
-IMPORTANT RULES:
-
-- Always return ALL fields
-- Do NOT leave anything empty
-- If unsure, make reasonable estimates
-- Output MUST be valid JSON only (no markdown, no text outside JSON)
+RULES:
+- JSON ONLY
+- No markdown
+- No explanation outside JSON
+- Fill all fields
+- Keep values realistic
 
 ----------------------------------------
 
 Article:
 ${text}
 `;
+}
 
+/* ----------------------------- SAFE PARSER ----------------------------- */
 
+function safeJSONParse(content) {
   try {
-    const response = await client.chat.completions.create({
-      model: "openai/gpt-3.5-turbo",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.1,
-    });
+    return JSON.parse(content);
+  } catch {
+    //fallback extraction 
+    const match = content.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("Invalid JSON format");
 
-    const content = response.choices[0].message.content;
-    const parsed = JSON.parse(content.trim());
-
-    return {
-      credibilityScore: parsed.credibilityScore ?? 50,
-      biasScore: parsed.biasScore ?? 50,
-      emotionalTone: parsed.emotionalTone ?? 50,
-      leaning: parsed.leaning ?? "Unknown",
-      evidenceStrength: parsed.evidenceStrength ?? "Unknown",
-      confidence: parsed.confidence ?? 50,
-      neutralSummary: parsed.neutralSummary ?? "No summary available.",
-      explanationPoints: Array.isArray(parsed.explanationPoints)
-        ? parsed.explanationPoints
-        : typeof parsed.explanationPoints === "string"
-          ? [parsed.explanationPoints]
-          : [],
-      claims: Array.isArray(parsed.claims)
-        ? parsed.claims
-        : parsed.claims
-          ? [parsed.claims]
-          : [],
-      comparisons: Array.isArray(parsed.comparisons)
-        ? parsed.comparisons
-        : parsed.comparisons
-          ? [parsed.comparisons]
-          : [],
-    };
-  } catch (err) {
-    console.error("AI Service Error:", err.message);
-    return {
-      credibilityScore: 50,
-      biasScore: 50,
-      emotionalTone: 50,
-      leaning: "Unknown",
-      evidenceStrength: "Unknown",
-      confidence: 50,
-      neutralSummary: "Could not analyze article.",
-      explanationPoints: [],
-      claims: [],
-      comparisons: [],
-    };
-  }
-  try {
-    const response = await client.chat.completions.create({
-      model: "openai/gpt-3.5-turbo",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.2,
-    });
-
-    
-    const content = response.choices[0].message.content;
-
-    try {
-      const parsed = JSON.parse(content.trim());
-
-      // ✅ NORMALIZE DATA HERE
-      return {
-        credibilityScore: parsed.credibilityScore ?? 50,
-        biasScore: parsed.biasScore ?? 50,
-        emotionalTone: parsed.emotionalTone ?? 50,
-        leaning: parsed.leaning ?? "Unknown",
-        evidenceStrength: parsed.evidenceStrength ?? "Unknown",
-        confidence: parsed.confidence ?? 50,
-        neutralSummary: parsed.neutralSummary ?? "No summary available.",
-
-        explanationPoints: Array.isArray(parsed.explanationPoints)
-          ? parsed.explanationPoints
-          : typeof parsed.explanationPoints === "string"
-            ? [parsed.explanationPoints]
-            : [],
-
-        claims: Array.isArray(parsed.claims)
-          ? parsed.claims
-          : parsed.claims
-            ? [parsed.claims]
-            : [],
-
-        comparisons: Array.isArray(parsed.comparisons)
-          ? parsed.comparisons
-          : parsed.comparisons
-            ? [parsed.comparisons]
-            : [],
-      };
-
-    } catch (err) {
-      console.error("❌ JSON Parse Error:", content);
-      return fallbackResponse();
-    }
-
-  } catch (err) {
-    console.error("❌ AI API Error:", err.message);
-    return fallbackResponse();
+    return JSON.parse(match[0]);
   }
 }
 
-// fallback (VERY IMPORTANT)
+/* ----------------------------- NORMALIZATION ----------------------------- */
+
+function normalize(parsed) {
+  return {
+    credibilityScore: parsed.credibilityScore ?? 50,
+    biasScore: parsed.biasScore ?? 50,
+    emotionalTone: parsed.emotionalTone ?? 50,
+    confidence: parsed.confidence ?? 50,
+    leaning: parsed.leaning ?? "Unknown",
+    evidenceStrength: parsed.evidenceStrength ?? "Unknown",
+    neutralSummary: parsed.neutralSummary ?? "No summary available.",
+
+    explanationPoints: Array.isArray(parsed.explanationPoints)
+      ? parsed.explanationPoints
+      : [],
+
+    claims: Array.isArray(parsed.claims)
+      ? parsed.claims
+      : [],
+
+    comparisons: Array.isArray(parsed.comparisons)
+      ? parsed.comparisons
+      : [],
+  };
+}
+
+/* ----------------------------- FALLBACK ----------------------------- */
+
 function fallbackResponse() {
   return {
     credibilityScore: 50,
     biasScore: 50,
     emotionalTone: 50,
+    confidence: 50,
     leaning: "Unknown",
     evidenceStrength: "Unknown",
-    confidence: 50,
-    neutralSummary: "Could not analyze article.",
+    neutralSummary: "AI analysis unavailable.",
     explanationPoints: [],
     claims: [],
     comparisons: [],
