@@ -6,15 +6,15 @@ const client = new OpenAI({
 });
 
 /* ----------------------------- MAIN FUNCTION ----------------------------- */
-
 async function analyzeArticleWithAI(text) {
-  const prompt = buildPrompt(text);
+  const cleanedText = preprocessText(text);
+  const prompt = buildPrompt(cleanedText);
 
   try {
     const response = await client.chat.completions.create({
-      model: "openai/gpt-4o-mini", 
+      model: "openai/gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.2,
+      temperature: 0.35, // 🔥 slightly higher = less repetition
       response_format: { type: "json_object" },
     });
 
@@ -22,7 +22,7 @@ async function analyzeArticleWithAI(text) {
 
     if (!content) throw new Error("Empty AI response");
 
-    console.log("🔍 RAW AI RESPONSE:\n", content);
+    console.log("🔍 RAW AI RESPONSE:\n", content.slice(0, 500));
 
     const parsed = safeJSONParse(content);
 
@@ -34,39 +34,49 @@ async function analyzeArticleWithAI(text) {
   }
 }
 
-/* ----------------------------- PROMPT BUILDER ----------------------------- */
+/* ----------------------------- TEXT PREPROCESS ----------------------------- */
+function preprocessText(text) {
+  return text
+    .replace(/\s+/g, " ")
+    .replace(/(subscribe|advertisement|cookie policy)/gi, "")
+    .trim()
+    .slice(0, 8000); // prevent overload
+}
 
+/* ----------------------------- PROMPT BUILDER ----------------------------- */
 function buildPrompt(text) {
   return `
-You are an expert media analysis AI.
+You are a professional media analyst.
 
-Analyze the article and return STRICT JSON ONLY.
+Your job is to critically evaluate the article — not summarize lazily.
 
 ----------------------------------------
+CRITICAL THINKING RULES:
 
+- DO NOT default to mid scores (50-60)
+- Use FULL range (0–100)
+- If weak evidence → go BELOW 40
+- If strong evidence → go ABOVE 75
+- Scores must vary based on content
+- Avoid safe/generic answers
+
+----------------------------------------
 SCORING GUIDELINES:
 
-credibilityScore (0-100):
-- 0–30 → weak / unsupported
-- 31–60 → moderate reliability
-- 61–85 → credible
-- 86–100 → highly reliable
+credibilityScore:
+- Low if no sources, vague claims
+- High if data, experts, verifiable facts
 
-biasScore (0-100):
-- 0–20 → neutral
-- 21–50 → mild bias
-- 51–80 → clear bias
-- 81–100 → strong bias
+biasScore:
+- High if emotional, one-sided, loaded language
+- Low if balanced, multiple perspectives
 
-emotionalTone (0-100):
-- 0–20 → factual
-- 21–50 → mildly expressive
-- 51–80 → emotional
-- 81–100 → highly dramatic
+emotionalTone:
+- High if dramatic, persuasive
+- Low if factual and calm
 
 ----------------------------------------
-
-OUTPUT FORMAT:
+OUTPUT JSON ONLY:
 
 {
   "credibilityScore": number,
@@ -75,92 +85,91 @@ OUTPUT FORMAT:
   "confidence": number,
   "leaning": "Left | Right | Neutral",
   "evidenceStrength": "Weak | Moderate | Strong",
-  "neutralSummary": "2-3 line summary",
-  "explanationPoints": ["point1", "point2", "point3"],
+  "neutralSummary": "2-3 line factual summary",
+  "explanationPoints": ["specific reasoning 1", "specific reasoning 2", "specific reasoning 3"],
   "claims": [
     {
-      "claim": "string",
-      "support": "string",
+      "claim": "specific claim from article",
+      "support": "what supports or challenges it",
       "evidenceType": "data | opinion | anecdote | expert statement | none",
       "confidence": number
     }
   ],
   "comparisons": [
     {
-      "outlet": "string",
+      "outlet": "realistic outlet name",
       "leaning": "Left | Right | Neutral",
-      "headline": "string",
-      "tone": "string",
-      "framing": "string"
+      "headline": "how they would frame it",
+      "tone": "tone description",
+      "framing": "what angle they emphasize"
     },
     {
-      "outlet": "string",
+      "outlet": "another outlet",
       "leaning": "Left | Right | Neutral",
-      "headline": "string",
-      "tone": "string",
-      "framing": "string"
+      "headline": "alternative framing",
+      "tone": "tone description",
+      "framing": "angle difference"
     }
   ]
 }
 
 ----------------------------------------
+IMPORTANT:
 
-RULES:
-- JSON ONLY
-- No markdown
-- No explanation outside JSON
-- Fill all fields
-- Keep values realistic
+- Avoid generic phrases like "this article discusses..."
+- Be SPECIFIC to the content
+- Extract REAL claims, not vague summaries
+- Scores MUST reflect actual content differences
 
 ----------------------------------------
-
 Article:
 ${text}
 `;
 }
 
 /* ----------------------------- SAFE PARSER ----------------------------- */
-
 function safeJSONParse(content) {
   try {
     return JSON.parse(content);
   } catch {
-    //fallback extraction 
     const match = content.match(/\{[\s\S]*\}/);
     if (!match) throw new Error("Invalid JSON format");
-
     return JSON.parse(match[0]);
   }
 }
 
 /* ----------------------------- NORMALIZATION ----------------------------- */
-
 function normalize(parsed) {
   return {
-    credibilityScore: parsed.credibilityScore ?? 50,
-    biasScore: parsed.biasScore ?? 50,
-    emotionalTone: parsed.emotionalTone ?? 50,
-    confidence: parsed.confidence ?? 50,
+    credibilityScore: clamp(parsed.credibilityScore),
+    biasScore: clamp(parsed.biasScore),
+    emotionalTone: clamp(parsed.emotionalTone),
+    confidence: clamp(parsed.confidence),
     leaning: parsed.leaning ?? "Unknown",
     evidenceStrength: parsed.evidenceStrength ?? "Unknown",
     neutralSummary: parsed.neutralSummary ?? "No summary available.",
 
     explanationPoints: Array.isArray(parsed.explanationPoints)
-      ? parsed.explanationPoints
+      ? parsed.explanationPoints.slice(0, 5)
       : [],
 
     claims: Array.isArray(parsed.claims)
-      ? parsed.claims
+      ? parsed.claims.slice(0, 4)
       : [],
 
     comparisons: Array.isArray(parsed.comparisons)
-      ? parsed.comparisons
+      ? parsed.comparisons.slice(0, 2)
       : [],
   };
 }
 
-/* ----------------------------- FALLBACK ----------------------------- */
+/* ----------------------------- UTIL ----------------------------- */
+function clamp(val) {
+  if (typeof val !== "number") return 50;
+  return Math.max(0, Math.min(100, val));
+}
 
+/* ----------------------------- FALLBACK ----------------------------- */
 function fallbackResponse() {
   return {
     credibilityScore: 50,
