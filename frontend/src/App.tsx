@@ -50,6 +50,9 @@ function App() {
     setIsAnalyzing(true)
     setAnalysisResult(null)
 
+    console.log('CLICKED')
+    console.log(import.meta.env.VITE_API_URL)
+
     try {
       const requestBody =
         inputType === 'url'
