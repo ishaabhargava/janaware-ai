@@ -14,7 +14,7 @@ async function analyzeArticleWithAI(text) {
     const response = await client.chat.completions.create({
       model: "openai/gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
-      temperature: 0.35, // 🔥 slightly higher = less repetition
+      temperature: 0.35,
       response_format: { type: "json_object" },
     });
 

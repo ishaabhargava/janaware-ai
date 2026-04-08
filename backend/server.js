@@ -11,8 +11,7 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5174",
   "http://localhost:5173",
-  "https://articleiq-1.onrender.com",
-  "https://your-vercel-url.vercel.app"
+  "https://articleiq-1.onrender.com"
 ];
 
 app.use(cors({
